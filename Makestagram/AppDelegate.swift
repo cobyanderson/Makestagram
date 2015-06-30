@@ -8,6 +8,8 @@
 
 import UIKit
 
+import Parse
+
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
@@ -17,8 +19,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   func application(application: UIApplication, didFinishLaunchingWithOptions launchOptions: [NSObject: AnyObject]?) -> Bool {
     // Override point for customization after application launch.
     
+    //setup Parse ID
+    Parse.setApplicationId("r22EjOOyP10jfBObszjltt4M1hjp2T30sXJFlyr4", clientKey: "mOb2cZLWLGZGlIcHwesKjX8RYwoYFVePaOJ7nZsZ")
+    
+    PFUser.logInWithUsername("test", password: "test")
+    
+    if let user = PFUser.currentUser() {
+            println("log in successful")
+        }
+        else {
+            println("No log in :(")
+    }
+    
+    
+    let acl = PFACL()
+    acl.setPublicReadAccess(true)
+    PFACL.setDefaultACL(acl, withAccessForCurrentUser: true)
+    
     return true
-  }
+    }
+
 
   func applicationWillResignActive(application: UIApplication) {
     // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
