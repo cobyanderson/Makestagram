@@ -8,19 +8,27 @@
 
 import UIKit
 import Parse
+import ConvenienceKit
 
-class TimelineViewController: UIViewController {
+
+class TimelineViewController: UIViewController, TimelineComponentTarget {
     
     @IBOutlet weak var tableView: UITableView!
     
-    var posts: [Post] = []
-        //adds posts property
+    var timelineComponent: TimelineComponent<Post, TimelineViewController>!
+    
+    let defaultRange = 0...4
+    let additionalRangeSize = 5
+        //properties of the timeline posts
+    
+   
     
     var photoTakingHelper: PhotoTakingHelper?
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        
+        timelineComponent = TimelineComponent(target: self)
+            //initializes a timeline component
         self.tabBarController?.delegate = self
             //sets the TimelineViewController as the delegate of the TabBarController
 
@@ -32,53 +40,35 @@ class TimelineViewController: UIViewController {
         // Dispose of any resources that can be recreated.
     }
     
+    
+    func loadInRange(range: Range<Int>, completionBlock: ([Post]?) -> Void) {
+        //loads posts
+        // 1
+        ParseHelper.timelineRequestforCurrentUser(range) {
+            (result: [AnyObject]?, error: NSError?) -> Void in
+            // 2
+            let posts = result as? [Post] ?? []
+            // 3
+            completionBlock(posts)
+        }
+    }
+    
     func takePhoto() {
         // instantiate photo taking class, provide callback for when photo  is selected
         photoTakingHelper = PhotoTakingHelper(viewController: self.tabBarController!) { (image: UIImage?) in
             let post = Post()
-            post.image = image
+            post.image.value = image!
             post.uploadPost()
 
         }
+    
     }
     override func viewDidAppear(animated: Bool) {
         super.viewDidAppear(animated)
         
-        // 1
-        let followingQuery = PFQuery(className: "Follow")
-        followingQuery.whereKey("fromUser", equalTo:PFUser.currentUser()!)
-        
-        // 2
-        let postsFromFollowedUsers = Post.query()
-        postsFromFollowedUsers!.whereKey("user", matchesKey: "toUser", inQuery: followingQuery)
-        
-        // 3
-        let postsFromThisUser = Post.query()
-        postsFromThisUser!.whereKey("user", equalTo: PFUser.currentUser()!)
-        
-        // 4
-        let query = PFQuery.orQueryWithSubqueries([postsFromFollowedUsers!, postsFromThisUser!])
-        // 5
-        query.includeKey("user")
-        // 6
-        query.orderByDescending("createdAt")
-        
-        // 7
-        query.findObjectsInBackgroundWithBlock {(result: [AnyObject]?, error: NSError?) -> Void in
-            // 8
-            self.posts = result as? [Post] ?? []
-            
-            // 1
-            for post in self.posts {
-                // 2
-                let data = post.imageFile?.getData()
-                // 3
-                post.image = UIImage(data: data!, scale:1.0)
-            }
-            // 9
-            self.tableView.reloadData()
+        timelineComponent.loadInitialIfRequired()
         }
-    }
+    
 
 
     /*
@@ -109,15 +99,26 @@ extension TimelineViewController: UITableViewDataSource {
     
     func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         // 1
-        return posts.count
+        return timelineComponent.content.count
     }
     
     func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
         // 2
-        let cell = tableView.dequeueReusableCellWithIdentifier("PostCell") as!  PostTableViewCells
+        let cell = tableView.dequeueReusableCellWithIdentifier("PostCell") as! PostTableViewCells
         
-        cell.postImageView.image = posts[indexPath.row].image
-        
+        let post = timelineComponent.content[indexPath.row]
+        post.downloadImage()
+        post.fetchLikes()
+        cell.post = post
         return cell
+        
+    }
 }
+extension TimelineViewController: UITableViewDelegate {
+    
+    func tableView(tableView: UITableView, willDisplayCell cell: UITableViewCell, forRowAtIndexPath indexPath: NSIndexPath) {
+        
+        timelineComponent.targetWillDisplayEntry(indexPath.row)
+    }
+    
 }

@@ -1,5 +1,6 @@
 import Foundation
 import Parse
+import Bond
 
 // 1
 class Post : PFObject, PFSubclassing {
@@ -7,7 +8,9 @@ class Post : PFObject, PFSubclassing {
     var photoUploadTask: UIBackgroundTaskIdentifier?
         //adds the photo upload task property
     
-    var image: UIImage?
+    var image: Dynamic <UIImage?> = Dynamic(nil)
+    
+    var likes =  Dynamic<[PFUser]?>(nil)
     
     // 2
     @NSManaged var imageFile: PFFile?
@@ -17,7 +20,7 @@ class Post : PFObject, PFSubclassing {
     //MARK: PFSubclassing Protocol
     
     func uploadPost(){
-        let imageData = UIImageJPEGRepresentation(image, 0.8)
+        let imageData = UIImageJPEGRepresentation(image.value, 0.8)
         //turns UIImage into NSData instance because PFFile class needs NSData instance
         let imageFile = PFFile(data: imageData)
         
@@ -39,6 +42,7 @@ class Post : PFObject, PFSubclassing {
     
     
     
+    
     // 3
     static func parseClassName() -> String {
         return "Post"
@@ -56,6 +60,62 @@ class Post : PFObject, PFSubclassing {
             self.registerSubclass()
         }
     }
+    func downloadImage() {
+        // if image is not downloaded yet, get it
+        // 1
+        if (image.value == nil) {
+            // 2
+            imageFile?.getDataInBackgroundWithBlock { (data: NSData?, error: NSError?) -> Void in
+                if let data = data {
+                    let image = UIImage(data: data, scale:1.0)!
+                    // 3
+                    self.image.value = image
+                }
+            }
+        }
+    }
+    
+    func fetchLikes() {
+        // 1
+        if (likes.value != nil) {
+            return
+        }
+        
+        // 2
+        ParseHelper.likesForPost(self, completionBlock: { (var likes: [AnyObject]?, error: NSError?) -> Void in
+            // 3
+            likes = likes?.filter { like in like[ParseHelper.ParseLikeFromUser] != nil }
+            
+            // 4
+            self.likes.value = likes?.map { like in
+                let like = like as! PFObject
+                let fromUser = like[ParseHelper.ParseLikeFromUser] as! PFUser
+                
+                return fromUser
+            }
+        })
+    }
+    func doesUserLikePost(user: PFUser) -> Bool {
+        if let likes = likes.value {
+            return contains(likes, user)
+        } else {
+            return false
+        }
+    }
+    func toggleLikePost(user: PFUser) {
+        if (doesUserLikePost(user)) {
+            // if image is liked, unlike it now
+            // 1
+            likes.value = likes.value?.filter { $0 != user }
+            ParseHelper.unlikePost(user, post: self)
+        } else {
+            // if this image is not liked yet, like it now
+            // 2
+            likes.value?.append(user)
+            ParseHelper.likePost(user, post: self)
+        }
+    }
+
     
 }
 
